@@ -2,6 +2,10 @@ package com.macro.mall.common.exception;
 
 import cn.hutool.core.util.StrUtil;
 import com.macro.mall.common.api.CommonResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
 import org.springframework.validation.BindingResult;
 import org.springframework.validation.FieldError;
@@ -9,6 +13,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.sql.SQLSyntaxErrorException;
 
@@ -18,6 +23,7 @@ import java.sql.SQLSyntaxErrorException;
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
+    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ResponseBody
     @ExceptionHandler(value = ApiException.class)
@@ -64,5 +70,16 @@ public class GlobalExceptionHandler {
             message = "演示环境暂无修改权限，如需修改数据可本地搭建后台服务！";
         }
         return CommonResult.failed(message);
+    }
+
+
+    /**
+     * 统一处理空请求体或 JSON 无法反序列化的情况。
+     */
+    @ResponseBody
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(value = HttpMessageNotReadableException.class)
+    public CommonResult<?> handleHttpMessageNotReadableException() {
+        return CommonResult.validateFailed("请求体格式错误");
     }
 }
