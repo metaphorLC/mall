@@ -2,8 +2,6 @@ package com.macro.mall.common.exception;
 
 import cn.hutool.core.util.StrUtil;
 import com.macro.mall.common.api.CommonResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BindException;
@@ -14,6 +12,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseBody;
 import org.springframework.web.bind.annotation.ResponseStatus;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import java.sql.SQLSyntaxErrorException;
 
@@ -23,8 +22,6 @@ import java.sql.SQLSyntaxErrorException;
  */
 @ControllerAdvice
 public class GlobalExceptionHandler {
-    private static final Logger LOGGER = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
     @ResponseBody
     @ExceptionHandler(value = ApiException.class)
     public CommonResult handle(ApiException e) {
@@ -82,4 +79,15 @@ public class GlobalExceptionHandler {
     public CommonResult<?> handleHttpMessageNotReadableException() {
         return CommonResult.validateFailed("请求体格式错误");
     }
+
+    @ResponseBody
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    @ExceptionHandler(value = MethodArgumentTypeMismatchException.class)
+    public CommonResult<?> handleMethodArgumentTypeMismatchException(MethodArgumentTypeMismatchException e) {
+        return CommonResult.validateFailed(
+                "参数" + e.getName() + "类型错误"
+        );
+    }
+
+
 }

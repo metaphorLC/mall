@@ -156,13 +156,23 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     }
 
     @Override
-    public List<UmsAdmin> list(String keyword, Integer pageSize, Integer pageNum) {
+    public List<UmsAdmin> list(String keyword, Integer status, Integer pageSize, Integer pageNum) {
         PageHelper.startPage(pageNum, pageSize);
         UmsAdminExample example = new UmsAdminExample();
         UmsAdminExample.Criteria criteria = example.createCriteria();
         if (!StrUtil.isEmpty(keyword)) {
             criteria.andUsernameLike("%" + keyword + "%");
-            example.or(example.createCriteria().andNickNameLike("%" + keyword + "%"));
+            if (status != null) {
+                criteria.andStatusEqualTo(status);
+            }
+
+            UmsAdminExample.Criteria nickNameCriteria = example.or();
+            nickNameCriteria.andNickNameLike("%" + keyword + "%");
+            if (status != null) {
+                nickNameCriteria.andStatusEqualTo(status);
+            }
+        } else if (status != null) {
+            criteria.andStatusEqualTo(status);
         }
         return adminMapper.selectByExample(example);
     }

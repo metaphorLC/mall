@@ -116,9 +116,13 @@ public class UmsAdminController {
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<CommonPage<UmsAdmin>> list(@RequestParam(value = "keyword", required = false) String keyword,
+                                                   @RequestParam(value = "status", required = false) Integer status,
                                                    @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
                                                    @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
-        List<UmsAdmin> adminList = adminService.list(keyword, pageSize, pageNum);
+        if (status != null && status != 0 && status != 1) {
+            return CommonResult.validateFailed("status只能为0或1");
+        }
+        List<UmsAdmin> adminList = adminService.list(keyword, status, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(adminList));
     }
 
