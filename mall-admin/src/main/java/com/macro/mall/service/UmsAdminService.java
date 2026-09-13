@@ -47,7 +47,7 @@ public interface UmsAdminService {
     /**
      * 根据用户名或昵称分页查询用户
      */
-    List<UmsAdmin> list(String keyword, Integer status, Integer pageSize, Integer pageNum);
+    List<UmsAdmin> list(String keyword, Integer status, Long roleId, Integer pageSize, Integer pageNum);
 
     /**
      * 修改指定用户信息

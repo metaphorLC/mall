@@ -117,12 +117,16 @@ public class UmsAdminController {
     @ResponseBody
     public CommonResult<CommonPage<UmsAdmin>> list(@RequestParam(value = "keyword", required = false) String keyword,
                                                    @RequestParam(value = "status", required = false) Integer status,
+                                                   @RequestParam(value = "roleId", required = false) Long roleId,
                                                    @RequestParam(value = "pageSize", defaultValue = "5") Integer pageSize,
                                                    @RequestParam(value = "pageNum", defaultValue = "1") Integer pageNum) {
         if (status != null && status != 0 && status != 1) {
             return CommonResult.validateFailed("status只能为0或1");
         }
-        List<UmsAdmin> adminList = adminService.list(keyword, status, pageSize, pageNum);
+        if (roleId != null && roleId <= 0) {
+            return CommonResult.validateFailed("roleId必须大于0");
+        }
+        List<UmsAdmin> adminList = adminService.list(keyword, status, roleId, pageSize, pageNum);
         return CommonResult.success(CommonPage.restPage(adminList));
     }
 

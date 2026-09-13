@@ -6,6 +6,7 @@ import com.github.pagehelper.PageHelper;
 import com.macro.mall.bo.AdminUserDetails;
 import com.macro.mall.common.exception.Asserts;
 import com.macro.mall.common.util.RequestUtil;
+import com.macro.mall.dao.UmsAdminDao;
 import com.macro.mall.dao.UmsAdminRoleRelationDao;
 import com.macro.mall.dto.UmsAdminParam;
 import com.macro.mall.dto.UpdateAdminPasswordParam;
@@ -56,6 +57,8 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     private UmsAdminRoleRelationDao adminRoleRelationDao;
     @Autowired
     private UmsAdminLoginLogMapper loginLogMapper;
+    @Autowired
+    private UmsAdminDao umsAdminDao;
 
     @Override
     public UmsAdmin getAdminByUsername(String username) {
@@ -156,25 +159,10 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     }
 
     @Override
-    public List<UmsAdmin> list(String keyword, Integer status, Integer pageSize, Integer pageNum) {
+    public List<UmsAdmin> list(String keyword, Integer status, Long roleId, Integer pageSize, Integer pageNum) {
         PageHelper.startPage(pageNum, pageSize);
-        UmsAdminExample example = new UmsAdminExample();
-        UmsAdminExample.Criteria criteria = example.createCriteria();
-        if (!StrUtil.isEmpty(keyword)) {
-            criteria.andUsernameLike("%" + keyword + "%");
-            if (status != null) {
-                criteria.andStatusEqualTo(status);
-            }
+        return umsAdminDao.list(keyword, status, roleId);
 
-            UmsAdminExample.Criteria nickNameCriteria = example.or();
-            nickNameCriteria.andNickNameLike("%" + keyword + "%");
-            if (status != null) {
-                nickNameCriteria.andStatusEqualTo(status);
-            }
-        } else if (status != null) {
-            criteria.andStatusEqualTo(status);
-        }
-        return adminMapper.selectByExample(example);
     }
 
     @Override
