@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
+import org.springframework.util.CollectionUtils;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
@@ -196,6 +197,16 @@ public class UmsAdminController {
     @ResponseBody
     public CommonResult updateRole(@RequestParam("adminId") Long adminId,
                                    @RequestParam("roleIds") List<Long> roleIds) {
+        // 参数规则校验
+        if(adminId != null && adminId <= 0 ) {
+            return CommonResult.validateFailed("adminId 必须大于0");
+        }
+        if (!CollectionUtils.isEmpty(roleIds)) {
+            boolean hasInvalidRoleId = roleIds.stream().anyMatch(roleId -> roleId == null || roleId <=   0);
+            if (hasInvalidRoleId) {
+                return CommonResult.validateFailed("roleId必须大于0");
+            }
+        }
         int count = adminService.updateRole(adminId, roleIds);
         if (count >= 0) {
             return CommonResult.success(count);

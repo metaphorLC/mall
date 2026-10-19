@@ -13,6 +13,7 @@ import com.macro.mall.dto.UpdateAdminPasswordParam;
 import com.macro.mall.mapper.UmsAdminLoginLogMapper;
 import com.macro.mall.mapper.UmsAdminMapper;
 import com.macro.mall.mapper.UmsAdminRoleRelationMapper;
+import com.macro.mall.mapper.UmsRoleMapper;
 import com.macro.mall.model.*;
 import com.macro.mall.security.util.JwtTokenUtil;
 import com.macro.mall.security.util.SpringUtil;
@@ -29,13 +30,18 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.util.CollectionUtils;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import jakarta.servlet.http.HttpServletRequest;
+
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -59,6 +65,8 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     private UmsAdminLoginLogMapper loginLogMapper;
     @Autowired
     private UmsAdminDao umsAdminDao;
+    @Autowired
+    private UmsRoleMapper roleMapper;
 
     @Override
     public UmsAdmin getAdminByUsername(String username) {
@@ -104,10 +112,10 @@ public class UmsAdminServiceImpl implements UmsAdminService {
         //密码需要客户端加密后传递
         try {
             UserDetails userDetails = loadUserByUsername(username);
-            if(!passwordEncoder.matches(password,userDetails.getPassword())){
+            if (!passwordEncoder.matches(password, userDetails.getPassword())) {
                 Asserts.fail("密码不正确");
             }
-            if(!userDetails.isEnabled()){
+            if (!userDetails.isEnabled()) {
                 Asserts.fail("帐号已被禁用");
             }
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
@@ -123,11 +131,12 @@ public class UmsAdminServiceImpl implements UmsAdminService {
 
     /**
      * 添加登录记录
+     *
      * @param username 用户名
      */
     private void insertLoginLog(String username) {
         UmsAdmin admin = getAdminByUsername(username);
-        if(admin==null) return;
+        if (admin == null) return;
         UmsAdminLoginLog loginLog = new UmsAdminLoginLog();
         loginLog.setAdminId(admin.getId());
         loginLog.setCreateTime(new Date());
@@ -169,14 +178,14 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     public int update(Long id, UmsAdmin admin) {
         admin.setId(id);
         UmsAdmin rawAdmin = adminMapper.selectByPrimaryKey(id);
-        if(rawAdmin.getPassword().equals(admin.getPassword())){
+        if (rawAdmin.getPassword().equals(admin.getPassword())) {
             //与原加密密码相同的不需要修改
             admin.setPassword(null);
-        }else{
+        } else {
             //与原加密密码不同的需要加密修改
-            if(StrUtil.isEmpty(admin.getPassword())){
+            if (StrUtil.isEmpty(admin.getPassword())) {
                 admin.setPassword(null);
-            }else{
+            } else {
                 admin.setPassword(passwordEncoder.encode(admin.getPassword()));
             }
         }
@@ -193,17 +202,36 @@ public class UmsAdminServiceImpl implements UmsAdminService {
         return count;
     }
 
+    @Transactional(rollbackFor = Exception.class)
     @Override
     public int updateRole(Long adminId, List<Long> roleIds) {
-        int count = roleIds == null ? 0 : roleIds.size();
+        // 给传进来的roleIds去重
+        List<Long> uniqueRoleIds = new ArrayList<>(new HashSet<>(roleIds));
+        int count = uniqueRoleIds.size();
+        // 判断角色id是否有效，uniqueRoleIds 是去重后的角色 ID 列表
+        if (!uniqueRoleIds.isEmpty()) {
+            UmsRoleExample example = new UmsRoleExample();
+            example.createCriteria().andIdIn(uniqueRoleIds);
+            List<UmsRole> roles = roleMapper.selectByExample(example);
+            if (roles.size() != uniqueRoleIds.size()) {
+                Asserts.fail("存在无效角色");
+            }
+        }
+        // 判断管理员id是否有效
+        if (adminId != null) {
+            UmsAdmin admin = adminMapper.selectByPrimaryKey(adminId);
+            if (admin == null) {
+                Asserts.fail("管理员不存在");
+            }
+        }
         //先删除原来的关系
         UmsAdminRoleRelationExample adminRoleRelationExample = new UmsAdminRoleRelationExample();
         adminRoleRelationExample.createCriteria().andAdminIdEqualTo(adminId);
         adminRoleRelationMapper.deleteByExample(adminRoleRelationExample);
         //建立新关系
-        if (!CollectionUtils.isEmpty(roleIds)) {
+        if (!CollectionUtils.isEmpty(uniqueRoleIds)) {
             List<UmsAdminRoleRelation> list = new ArrayList<>();
-            for (Long roleId : roleIds) {
+            for (Long roleId : uniqueRoleIds) {
                 UmsAdminRoleRelation roleRelation = new UmsAdminRoleRelation();
                 roleRelation.setAdminId(adminId);
                 roleRelation.setRoleId(roleId);
@@ -211,7 +239,14 @@ public class UmsAdminServiceImpl implements UmsAdminService {
             }
             adminRoleRelationDao.insertList(list);
         }
-        getCacheService().delResourceList(adminId);
+        TransactionSynchronizationManager.registerSynchronization(
+                new TransactionSynchronization() {
+                    @Override
+                    public void afterCommit() {
+                        getCacheService().delResourceList(adminId);
+                    }
+                }
+        );
         return count;
     }
 
@@ -224,33 +259,33 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     public List<UmsResource> getResourceList(Long adminId) {
         //先从缓存中获取数据
         List<UmsResource> resourceList = getCacheService().getResourceList(adminId);
-        if(CollUtil.isNotEmpty(resourceList)){
-            return  resourceList;
+        if (CollUtil.isNotEmpty(resourceList)) {
+            return resourceList;
         }
         //缓存中没有从数据库中获取
         resourceList = adminRoleRelationDao.getResourceList(adminId);
-        if(CollUtil.isNotEmpty(resourceList)){
+        if (CollUtil.isNotEmpty(resourceList)) {
             //将数据库中的数据存入缓存中
-            getCacheService().setResourceList(adminId,resourceList);
+            getCacheService().setResourceList(adminId, resourceList);
         }
         return resourceList;
     }
 
     @Override
     public int updatePassword(UpdateAdminPasswordParam param) {
-        if(StrUtil.isEmpty(param.getUsername())
-                ||StrUtil.isEmpty(param.getOldPassword())
-                ||StrUtil.isEmpty(param.getNewPassword())){
+        if (StrUtil.isEmpty(param.getUsername())
+                || StrUtil.isEmpty(param.getOldPassword())
+                || StrUtil.isEmpty(param.getNewPassword())) {
             return -1;
         }
         UmsAdminExample example = new UmsAdminExample();
         example.createCriteria().andUsernameEqualTo(param.getUsername());
         List<UmsAdmin> adminList = adminMapper.selectByExample(example);
-        if(CollUtil.isEmpty(adminList)){
+        if (CollUtil.isEmpty(adminList)) {
             return -2;
         }
         UmsAdmin umsAdmin = adminList.get(0);
-        if(!passwordEncoder.matches(param.getOldPassword(),umsAdmin.getPassword())){
+        if (!passwordEncoder.matches(param.getOldPassword(), umsAdmin.getPassword())) {
             return -3;
         }
         umsAdmin.setPassword(passwordEncoder.encode(param.getNewPassword()));
@@ -260,12 +295,12 @@ public class UmsAdminServiceImpl implements UmsAdminService {
     }
 
     @Override
-    public UserDetails loadUserByUsername(String username){
+    public UserDetails loadUserByUsername(String username) {
         //获取用户信息
         UmsAdmin admin = getAdminByUsername(username);
         if (admin != null) {
             List<UmsResource> resourceList = getResourceList(admin.getId());
-            return new AdminUserDetails(admin,resourceList);
+            return new AdminUserDetails(admin, resourceList);
         }
         throw new UsernameNotFoundException("用户名或密码错误");
     }
